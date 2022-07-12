@@ -1,4 +1,4 @@
-# file_cache
+# mtu
 
 cache file open handle
 
@@ -9,7 +9,7 @@ use example
 ```rust
 use anyhow::Result;
 use async_std::io::{prelude::SeekExt, ReadExt, SeekFrom};
-use file_cache::FileCache;
+use mtu::FileCache;
 
 async fn get(cache: &mut FileCache) -> Result<()> {
   let mut path = std::env::current_exe()?;

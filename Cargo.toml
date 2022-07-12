@@ -1,9 +1,9 @@
 [package]
-name = "file_cache"
+name = "mtu"
 version = "0.0.3"
 edition = "2021"
 license = "Apache-2.0"
-repository = "https://github.com/rmw-lib/file_cache"
+repository = "https://github.com/rmw-lib/mtu"
 readme = "README.md"
 description = "cache file open handle"
 
@@ -11,8 +11,8 @@ description = "cache file open handle"
 [dependencies]
 async-std = { version = "1.12.0", features = ["attributes"] }
 err = { version = "0.0.5", package = "rmw_err" }
-file_open_limit = "0.0.4"
-stretto = { version = "0.5.1", features = ["async"] }
+pnet_packet = "0.31.0"
+socket2 = "0.4.4"
 
 [dev-dependencies]
 anyhow = "1.0.58"
