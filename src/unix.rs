@@ -92,7 +92,8 @@ impl MtuV4 {
   }
 
   pub async fn stop(&self) {
-    if let Some(task) = self.recv.lock().take() {
+    let task = { self.recv.lock().take() };
+    if let Some(task) = task {
       task.cancel().await;
     }
   }
