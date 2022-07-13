@@ -223,7 +223,6 @@ impl MtuV4 {
             }
             if len >= min {
               min = len;
-              retry = RETRY;
             }
           } else {
             return rt!(0);
