@@ -63,14 +63,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
   for _ in 0..20 {
     if let Ok((bytes_read, from)) = socket_arc.recv_from(&mut buffer) {
       println!("Received {} bytes from {:?}", bytes_read, from);
-      let buf = &buffer[..bytes_read];
-      let ipv4_packet = pnet_packet::ipv4::Ipv4Packet::new(&buf).unwrap();
-
-      println!("ipv4_packet {:?}", ipv4_packet);
-      let echo = icmp::echo_reply::EchoReplyPacket::new(&buf).unwrap();
-      println!("echo {:?}", echo);
-      let echo = icmp::echo_reply::EchoReplyPacket::new(&ipv4_packet.payload()).unwrap();
-      println!("echo reply {:?}", echo);
+      let r = match from {
+        SocketAddr::V4(_) => mtu::v4(&buffer[..bytes_read]),
+        SocketAddr::V6(_) => mtu::v6(&buffer[..bytes_read]),
+      };
+      dbg!(r);
     }
   }
   Ok(())
