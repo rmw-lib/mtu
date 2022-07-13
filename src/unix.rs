@@ -233,7 +233,7 @@ impl MtuV4 {
   }
 }
 
-pub fn icmp_v4_send<'p>(udp: &std::net::UdpSocket, addr: SocketAddrV4, len: u16) {
+pub fn icmp_v4_send(udp: &std::net::UdpSocket, addr: SocketAddrV4, len: u16) {
   let len = len as usize;
   let mut buf = unsafe { Box::<[u8]>::new_uninit_slice(8 + len).assume_init() };
   let mut packet = icmp::echo_request::MutableEchoRequestPacket::new(&mut buf[..]).unwrap();
