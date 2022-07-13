@@ -76,6 +76,7 @@ impl MtuV4 {
   pub async fn get(&mut self, addr: SocketAddrV4) -> u16 {
     let len = 1472;
     let mut buf = unsafe { Box::<[u8]>::new_uninit_slice(8 + len).assume_init() };
+    let payload = unsafe { Box::<[u8]>::new_uninit_slice(len).assume_init() };
 
     let len = buf.len();
     let mut packet = icmp::echo_request::MutableEchoRequestPacket::new(&mut buf[..]).unwrap();
@@ -84,7 +85,7 @@ impl MtuV4 {
     // Identifier为标识符，由主机设定，一般设置为进程号，回送响应消息与回送消息中identifier保持一致 && Sequence Number为序列号，由主机设定，一般设为由0递增的序列，回送响应消息与回送消息中Sequence Number保持一致
     packet.set_identifier(2);
     packet.set_sequence_number(len as u16 - 8);
-    packet.set_payload(&[0; 1472]);
+    packet.set_payload(&payload);
 
     let icmp_packet = icmp::IcmpPacket::new(packet.packet()).unwrap();
     let checksum = icmp::checksum(&icmp_packet);
