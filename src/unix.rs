@@ -18,29 +18,29 @@ use pnet_packet::{
   Packet,
 };
 
-use crate::MTU_IPV4;
+use crate::UDP_HEADER_SIZE;
 
 const RETRY: u16 = 6;
 const PAYLOAD: [u8; crate::MTU_IPV4 as usize] = [9; crate::MTU_IPV4 as usize];
 
 #[cfg(any(target_os = "macos", target_os = "ios"))]
 pub fn v4(buf: &[u8]) -> u16 {
-  (buf.len() as u16) - crate::IPV4_HEADER_SIZE
+  (buf.len() as u16) - crate::IPV4_HEADER_SIZE - UDP_HEADER_SIZE
 }
 
 #[cfg(any(target_os = "macos", target_os = "ios"))]
 pub fn v6(buf: &[u8]) -> u16 {
-  (buf.len() as u16) - crate::IPV6_HEADER_SIZE
+  (buf.len() as u16) - crate::IPV6_HEADER_SIZE - UDP_HEADER_SIZE
 }
 
 #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "ios")))]
 pub fn v4(buf: &[u8]) -> u16 {
-  buf.len() as u16
+  buf.len() as u16 - UDP_HEADER_SIZE
 }
 
 #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "ios")))]
 pub fn v6(buf: &[u8]) -> u16 {
-  buf.len() as u16
+  buf.len() as u16 - UDP_HEADER_SIZE
 }
 
 #[derive(Debug)]
@@ -76,14 +76,20 @@ impl MtuV4 {
         if let Ok((recv, addr)) = udp.recv_from(&mut buf).await {
           //let sent = udp.send_to(&buf[..recv], &peer).await?;
           if let SocketAddr::V4(addr) = addr {
-            if let Some(addr_mtu) = mtu.read().get(&addr) {
-              let len = v4(&buf[..recv]);
-              addr_mtu.send.send(len).await;
-              println!("{} -> {}", addr, len);
+            let r = {
+              if let Some(addr_mtu) = mtu.read().get(&addr) {
+                let len = v4(&buf[..recv]);
+                Some((addr_mtu.send.clone(), len))
+              } else {
+                None
+              }
+            };
+            if let Some((send, len)) = r {
+              dbg!((addr, len));
+              err::log!(send.send(len).await);
             }
           }
         }
-        dbg!("end");
       }
     }));
   }
@@ -143,26 +149,53 @@ impl MtuV4 {
     match send_recv {
       FindRecv::Find(find) => err::ok!(find.recv().await).unwrap(),
       FindRecv::Recv(recv, find_s) => {
-        let mut retry = RETRY;
-
-        let wait = Duration::from_secs(self.timeout);
-
         self.run();
 
         let udp = &self.udp;
 
-        icmp_v4_send(udp, addr, crate::MTU_MIN_IPV4);
+        use crate::MTU_IPV4;
+
         icmp_v4_send(udp, addr, MTU_IPV4);
 
+        let mut retry = RETRY;
+
         while retry > 0 {
-          // err::log!(self.udp.send_to(packet.packet(), addr));
-          if let Ok(r) = timeout(wait, recv.recv()).await {
-            if let Ok(len) = r {
-              retry = RETRY;
+          let wait = Duration::from_millis(300);
+          if let Ok(Ok(len)) = timeout(wait, recv.recv()).await {
+            if len == MTU_IPV4 {
+              err::log!(find_s.send(len).await);
+              return len;
             }
+            retry -= 1;
+            continue;
           }
-          retry -= 1;
+          break;
         }
+
+        let mut retry = RETRY;
+
+        let wait = Duration::from_secs(self.timeout);
+
+        icmp_v4_send(udp, addr, crate::MTU_MIN_IPV4);
+
+        /*
+           recv.recv()).await
+
+
+
+           icmp_v4_send(udp, addr, MTU_IPV4);
+
+           while retry > 0 {
+        // err::log!(self.udp.send_to(packet.packet(), addr));
+        if let Ok(r) = timeout(wait, recv.recv()).await {
+        if let Ok(len) = r {
+        retry = RETRY;
+        dbg!((addr, len));
+        }
+        }
+        retry -= 1;
+        }
+        */
         0
       }
     }
