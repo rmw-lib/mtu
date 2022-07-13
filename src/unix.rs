@@ -266,7 +266,7 @@ impl MtuV4 {
           }
         }
 
-        while timeout > quick_ping {
+        while timeout >= quick_ping {
           send!(min + 1);
           timeout -= quick_ping;
           if let Ok(Ok(len)) = wait!(quick_ping) {
