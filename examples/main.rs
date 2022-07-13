@@ -67,7 +67,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
       let ipv4_packet = pnet_packet::ipv4::Ipv4Packet::new(&buffer[..bytes_read]).unwrap();
       let icmp_packet = pnet_packet::icmp::IcmpPacket::new(ipv4_packet.payload()).unwrap();
       let udp_packet = pnet_packet::udp::UdpPacket::new(&ipv4_packet.payload()).unwrap();
-      println!("Received {:?}", icmp_packet);
+      println!("Received {:?}", ipv4_packet);
     }
   }
   Ok(())
