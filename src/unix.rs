@@ -230,7 +230,7 @@ impl MtuV4 {
           }
         }
 
-        let mut step = 64;
+        let mut step = 16;
 
         loop {
           mtu -= step;
@@ -259,11 +259,13 @@ impl MtuV4 {
             }
           }
         }
+
         while timeout > quick_ping {
           send!(min + 1);
           timeout -= quick_ping;
           if let Ok(Ok(len)) = wait!(quick_ping) {
             if len > min {
+              timeout = self.timeout;
               min = len;
             }
           }
