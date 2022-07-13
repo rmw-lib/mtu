@@ -1,5 +1,3 @@
-use std::net::SocketAddr;
-
 pub const ETHERNET: u16 = 1500;
 pub const IPV4_HEADER_SIZE: u16 = 20;
 pub const IPV6_HEADER_SIZE: u16 = 40;
