@@ -1,9 +1,11 @@
 use std::{
+  collections::BTreeMap,
   net::{IpAddr, Ipv4Addr, SocketAddr, SocketAddrV4},
   time::Duration,
 };
 
 use async_std::{
+  channel::bounded,
   future::{pending, timeout},
   net::UdpSocket,
   task::{spawn, JoinHandle},
@@ -39,6 +41,7 @@ pub fn v6(buf: &[u8]) -> u16 {
 pub struct MtuV4 {
   udp: std::net::UdpSocket,
   run: Option<JoinHandle<()>>,
+  mtu: BTreeMap<SocketAddrV4, (u16, u16)>,
 }
 
 impl MtuV4 {
@@ -84,7 +87,11 @@ impl MtuV4 {
     .unwrap();
     err::log!(udp.bind(&addr.into()));
     let udp: std::net::UdpSocket = udp.into();
-    let mut me = Self { udp, run: None };
+    let mut me = Self {
+      udp,
+      run: None,
+      mtu: BTreeMap::<SocketAddrV4, (u16, u16)>::new(),
+    };
     me.run();
     me
   }
