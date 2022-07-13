@@ -46,7 +46,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut packet = icmp::echo_request::MutableEchoRequestPacket::new(&mut buf[..]).unwrap();
     packet.set_icmp_type(icmp::IcmpTypes::EchoRequest);
     packet.set_identifier(1);
-    packet.set_sequence_number(len as u16);
+    packet.set_sequence_number(len as u16 - 8);
     packet.set_payload(packet_slice);
 
     // Calculate and set the checksum
