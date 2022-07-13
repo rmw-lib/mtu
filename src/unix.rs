@@ -41,6 +41,7 @@ pub fn v6(buf: &[u8]) -> u16 {
 pub struct MtuV4 {
   udp: std::net::UdpSocket,
   recv: RwLock<Option<JoinHandle<()>>>,
+  timeout: u64,
   mtu: DashMap<SocketAddrV4, (u16, u16)>,
 }
 
@@ -91,6 +92,7 @@ impl MtuV4 {
     let udp: std::net::UdpSocket = udp.into();
     Self {
       udp,
+      timeout: 6,
       recv: RwLock::new(None),
       mtu: DashMap::<SocketAddrV4, (u16, u16)>::new(),
     }
@@ -118,7 +120,7 @@ impl MtuV4 {
     err::log!(self.udp.send_to(packet.packet(), addr));
 
     let never = pending::<()>();
-    let dur = Duration::from_secs(5);
+    let dur = Duration::from_secs(self.timeout);
 
     err::log!(timeout(dur, never).await);
     0
