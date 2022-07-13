@@ -1,11 +1,9 @@
 use std::{
-  collections::BTreeMap,
   net::{IpAddr, Ipv4Addr, SocketAddr, SocketAddrV4},
   time::Duration,
 };
 
 use async_std::{
-  channel::bounded,
   future::{pending, timeout},
   net::UdpSocket,
   task::{spawn, JoinHandle},
