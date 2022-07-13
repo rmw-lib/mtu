@@ -1,6 +1,8 @@
 # mtu
 
-find mtu for windows / mac / linux , not require root permissions.
+find mtu for windows / mac / linux , not require root permissions .
+
+base on `async_std` / `winping` .
 
 [./examples/main.rs](./examples/main.rs)
 
