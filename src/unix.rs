@@ -33,6 +33,7 @@ pub fn v6(buf: &[u8]) -> u16 {
   buf.len() as u16
 }
 
+#[derive(Debug)]
 pub struct MtuV4 {
   udp: std::net::UdpSocket,
   run: Option<JoinHandle<()>>,
@@ -48,9 +49,11 @@ impl MtuV4 {
       let mut buf = vec![0u8; crate::ETHERNET as usize];
       loop {
         if let Ok((recv, peer)) = udp.recv_from(&mut buf).await {
+          dbg!(111);
           //let sent = udp.send_to(&buf[..recv], &peer).await?;
           println!("{} -> {}", peer, v4(&buf[..recv]));
         }
+        dbg!("end");
       }
     }));
   }
@@ -70,23 +73,25 @@ impl MtuV4 {
     me
   }
 
-  pub async fn get(&self, addr: SocketAddrV4) -> u16 {
+  pub async fn get(&mut self, addr: SocketAddrV4) -> u16 {
     let mut buf = [0; 8 + 1472]; // 8 bytes of header, then payload
     let len = buf.len();
     let mut packet = icmp::echo_request::MutableEchoRequestPacket::new(&mut buf[..]).unwrap();
     packet.set_icmp_type(icmp::IcmpTypes::EchoRequest);
 
     // Identifier为标识符，由主机设定，一般设置为进程号，回送响应消息与回送消息中identifier保持一致 && Sequence Number为序列号，由主机设定，一般设为由0递增的序列，回送响应消息与回送消息中Sequence Number保持一致
-    //packet.set_identifier(2);
-    //packet.set_sequence_number(len as u16 - 8);
+    packet.set_identifier(2);
+    packet.set_sequence_number(len as u16 - 8);
     packet.set_payload(&[0; 1472]);
 
     let icmp_packet = icmp::IcmpPacket::new(packet.packet()).unwrap();
     let checksum = icmp::checksum(&icmp_packet);
     packet.set_checksum(checksum);
 
+    self.run();
     err::log!(self.udp.send_to(packet.packet(), addr));
 
+    let mut buf = [0; 1500];
     let never = pending::<()>();
     let dur = Duration::from_secs(5);
 
