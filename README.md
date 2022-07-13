@@ -2,9 +2,19 @@
 
 find mtu for windows / mac / linux , not require root permissions .
 
+the return mtu value not include ip header , for example if ipv4 mtu is 1500 , return mtu value is 1480
+
 base on `async_std` / `winping` .
 
-[./examples/main.rs](./examples/main.rs)
+---
+
+查找 windows / mac / linux 的 mtu ，不需要管理员权限。
+
+返回的 mtu 值不含 ip header 的长度，比如说 ipv4 的 mtu 1500 时，返回值是 1480。
+
+---
+
+[$ ./examples/main.rs](./examples/main.rs)
 
 ```rust
 use std::{
