@@ -152,11 +152,6 @@ impl MtuV4 {
 
         let udp = &self.udp;
 
-        icmp_v4_send(udp, addr, MTU_IPV4);
-
-        let mut retry = RETRY;
-        let mut min = MTU_MIN_IPV4;
-
         macro_rules! rt {
           ($len:expr) => {{
             err::log!(find_s.send($len).await);
@@ -169,35 +164,49 @@ impl MtuV4 {
                 self.mtu.fetch_add(($len - mtu) / 2, Ordering::Relaxed);
               }
             }
+
             $len
           }};
         }
 
-        while retry > 0 {
-          let wait = Duration::from_millis(300);
-          if let Ok(Ok(len)) = timeout(wait, recv.recv()).await {
-            if len == MTU_IPV4 {
-              return rt!(len);
-            } else if len > min {
-              min = len;
-            }
-            retry -= 1;
-            continue;
+        macro_rules! send {
+          ($len:expr) => {
+            icmp_v4_send(udp, addr, $len);
+          };
+        }
+
+        macro_rules! wait {
+          ($time:expr) => {{
+            let wait = Duration::from_millis($time);
+            timeout(wait, recv.recv()).await
+          }};
+        }
+
+        let mut mtu = MTU_IPV4;
+        send!(mtu);
+
+        let mut min = MTU_MIN_IPV4;
+        let quick_ping = 100.min(self.timeout);
+
+        if let Ok(Ok(len)) = wait!(quick_ping) {
+          if len == MTU_IPV4 {
+            return rt!(len);
+          } else if len > min {
+            min = len;
           }
-          break;
         }
 
         // 确定主机是否活着
 
         let mut retry = RETRY;
-        let quick_ping = 100.min(self.timeout);
 
         while retry != 0 {
           retry -= 1;
-          icmp_v4_send(udp, addr, min);
-          //let wait = Duration::from_secs(self.timeout);
-          let wait = Duration::from_millis(quick_ping);
-          if let Ok(Ok(len)) = timeout(wait, recv.recv()).await {
+          send!(min);
+          if let Ok(Ok(len)) = wait!(quick_ping) {
+            if len == MTU_IPV4 {
+              return rt!(len);
+            }
             if len >= min {
               min = len;
               retry = RETRY;
@@ -207,8 +216,10 @@ impl MtuV4 {
         }
 
         if retry == 0 {
-          let wait = Duration::from_millis(self.timeout - quick_ping);
-          if let Ok(Ok(len)) = timeout(wait, recv.recv()).await {
+          if let Ok(Ok(len)) = wait!(self.timeout - quick_ping) {
+            if len == MTU_IPV4 {
+              return rt!(len);
+            }
             if len >= min {
               min = len;
               retry = RETRY;
@@ -218,25 +229,33 @@ impl MtuV4 {
           }
         }
 
-        //todo!();
-        /*
-           recv.recv()).await
+        let mut step = 32;
 
+        loop {
+          if step <= 1 {
+            break;
+          }
+          {
+            let t = mtu - step;
+            if t < min {
+              step /= 2;
+              continue;
+            }
+            mtu = t;
+          }
 
+          send!(mtu);
 
-           icmp_v4_send(udp, addr, MTU_IPV4);
-
-           while retry > 0 {
-        // err::log!(self.udp.send_to(packet.packet(), addr));
-        if let Ok(r) = timeout(wait, recv.recv()).await {
-        if let Ok(len) = r {
-        retry = RETRY;
-        dbg!((addr, len));
+          if let Ok(Ok(len)) = wait!(quick_ping) {
+            if len > min {
+              min = len;
+              if mtu < min {
+                mtu = min + step;
+              }
+            }
+          }
         }
-        }
-        retry -= 1;
-        }
-        */
+
         min
       }
     }
