@@ -61,14 +61,26 @@ impl MtuV4 {
   }
 
   pub fn new() -> Self {
-    let localhost = Ipv4Addr::UNSPECIFIED;
+    let ip = IpAddr::V4(Ipv4Addr::UNSPECIFIED);
+    let addr = SocketAddr::new(ip, 0);
+
+    let port = {
+      std::net::UdpSocket::bind(addr)
+        .unwrap()
+        .local_addr()
+        .unwrap()
+        .port()
+    };
+
+    let addr = SocketAddr::new(ip, port);
+
     let udp = err::ok!(socket2::Socket::new(
       socket2::Domain::IPV4,
       socket2::Type::DGRAM,
       Some(socket2::Protocol::ICMPV4),
     ))
     .unwrap();
-    err::log!(udp.bind(&SocketAddr::new(IpAddr::V4(localhost), 0).into()));
+    err::log!(udp.bind(&addr.into()));
     let udp: std::net::UdpSocket = udp.into();
     let mut me = Self { udp, run: None };
     me.run();
@@ -83,8 +95,8 @@ impl MtuV4 {
     packet.set_icmp_type(icmp::IcmpTypes::EchoRequest);
 
     // Identifier为标识符，由主机设定，一般设置为进程号，回送响应消息与回送消息中identifier保持一致 && Sequence Number为序列号，由主机设定，一般设为由0递增的序列，回送响应消息与回送消息中Sequence Number保持一致
-
-    //packet.set_identifier(0);
+    // linux 貌似 Identifier 设置无效，会设置成udp的端口
+    //packet.set_identifier();
 
     packet.set_sequence_number(len as u16);
     packet.set_payload(&PAYLOAD[..len]);
