@@ -1,19 +1,23 @@
 use std::{
+  collections::HashMap,
   net::{IpAddr, Ipv4Addr, SocketAddr, SocketAddrV4},
+  pin::Pin,
   time::Duration,
 };
 
 use async_std::{
+  channel::{bounded, Receiver, Sender},
   future::{pending, timeout},
   net::UdpSocket,
   task::{spawn, JoinHandle},
 };
-use dashmap::DashMap;
-use parking_lot::RwLock;
+use parking_lot::{Mutex, RwLock};
 use pnet_packet::{
   icmp::{self},
   Packet,
 };
+
+use crate::MTU_IPV4;
 
 const PAYLOAD: [u8; crate::MTU_IPV4 as usize] = [9; crate::MTU_IPV4 as usize];
 
@@ -38,22 +42,34 @@ pub fn v6(buf: &[u8]) -> u16 {
 }
 
 #[derive(Debug)]
+pub struct AddrMtu {
+  max: u16,
+  min: u16,
+  send: Sender<()>,
+  find: Receiver<u16>,
+}
+
+enum FindRecv {
+  Find(Receiver<u16>),
+  Recv(Receiver<()>, Sender<u16>),
+}
+
+#[derive(Debug)]
 pub struct MtuV4 {
   udp: std::net::UdpSocket,
-  recv: RwLock<Option<JoinHandle<()>>>,
+  recv: Mutex<Option<JoinHandle<()>>>,
   timeout: u64,
-  mtu: DashMap<SocketAddrV4, (u16, u16)>,
+  mtu: RwLock<HashMap<SocketAddrV4, AddrMtu>>,
 }
 
 impl MtuV4 {
   pub fn run(&self) {
-    {
-      if self.recv.read().is_some() {
-        return;
-      }
+    let mut recv = self.recv.lock();
+    if recv.is_some() {
+      return;
     }
     let udp: UdpSocket = err::ok!(self.udp.try_clone()).unwrap().into();
-    *self.recv.write() = Some(spawn(async move {
+    *recv = Some(spawn(async move {
       let mut buf = vec![0u8; crate::ETHERNET as usize];
       loop {
         if let Ok((recv, peer)) = udp.recv_from(&mut buf).await {
@@ -93,12 +109,32 @@ impl MtuV4 {
     Self {
       udp,
       timeout,
-      recv: RwLock::new(None),
-      mtu: DashMap::<SocketAddrV4, (u16, u16)>::new(),
+      recv: Mutex::new(None),
+      mtu: RwLock::new(HashMap::new()),
     }
   }
 
   pub async fn get(&self, addr: SocketAddrV4) -> u16 {
+    let send_recv = {
+      let mut mtu = self.mtu.write();
+      if let Some(mtu) = mtu.get(&addr) {
+        FindRecv::Find(mtu.find.clone());
+      //        return err::ok!(mtu.find.recv().await).unwrap();
+      } else {
+        let (find_s, find_r) = bounded(1);
+        let (send, recv) = bounded(1);
+        mtu.insert(
+          addr,
+          AddrMtu {
+            max: crate::MTU_IPV4,
+            min: crate::MTU_MIN_IPV4,
+            find: find_r,
+            send,
+          },
+        );
+        FindRecv::Recv(recv, find_s);
+      }
+    };
     let len = 1472;
     let mut buf = unsafe { Box::<[u8]>::new_uninit_slice(8 + len).assume_init() };
 
@@ -121,7 +157,6 @@ impl MtuV4 {
 
     let never = pending::<()>();
     let dur = Duration::from_secs(self.timeout);
-
     err::log!(timeout(dur, never).await);
     0
   }
