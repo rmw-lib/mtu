@@ -42,10 +42,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
   std::thread::spawn(move || {
     let packet_slice = &mut [0; 57];
     let mut buf = vec![0; 8 + 57]; // 8 bytes of header, then payload
+    let len = buf.len();
     let mut packet = icmp::echo_request::MutableEchoRequestPacket::new(&mut buf[..]).unwrap();
     packet.set_icmp_type(icmp::IcmpTypes::EchoRequest);
     packet.set_identifier(1);
-    packet.set_sequence_number(1);
+    packet.set_sequence_number(len as u16);
     packet.set_payload(packet_slice);
 
     // Calculate and set the checksum
@@ -62,10 +63,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
   for _ in 0..20 {
     if let Ok((bytes_read, from)) = socket_arc.recv_from(&mut buffer) {
       println!("Received {} bytes from {:?}", bytes_read, from);
-      let ipv4_packet = pnet_packet::ipv4::Ipv4Packet::new(&buffer[..bytes_read]).unwrap();
-      let icmp_packet = pnet_packet::icmp::IcmpPacket::new(ipv4_packet.payload()).unwrap();
-      let udp_packet = pnet_packet::udp::UdpPacket::new(&ipv4_packet.payload()).unwrap();
-      println!("Received {:?}", ipv4_packet);
+      let buf = &buffer[..bytes_read];
+      let ipv4_packet = pnet_packet::ipv4::Ipv4Packet::new(&buf).unwrap();
+
+      println!("ipv4_packet {:?}", ipv4_packet);
+      let echo = icmp::echo_reply::EchoReplyPacket::new(&buf).unwrap();
+      println!("echo {:?}", echo);
+      let echo = icmp::echo_reply::EchoReplyPacket::new(&ipv4_packet.payload()).unwrap();
+      println!("echo reply {:?}", echo);
     }
   }
   Ok(())
