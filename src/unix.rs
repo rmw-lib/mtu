@@ -125,4 +125,10 @@ impl MtuV4 {
   }
 }
 
+impl Default for MtuV4 {
+  fn default() -> Self {
+    Self::new()
+  }
+}
+
 pub struct MtuV6 {}
