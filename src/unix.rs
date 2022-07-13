@@ -94,7 +94,7 @@ impl MtuV4 {
     Self {
       udp,
       recv: RwLock::new(None),
-      mtu: BTreeMap::<SocketAddrV4, (u16, u16)>::new(),
+      mtu: DashMap::<SocketAddrV4, (u16, u16)>::new(),
     }
   }
 
