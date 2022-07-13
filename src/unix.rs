@@ -186,7 +186,7 @@ impl MtuV4 {
         send!(mtu);
 
         let mut min = MTU_MIN_IPV4;
-        let quick_ping = 100.min(self.timeout);
+        let quick_ping = 200.min(self.timeout);
 
         if let Ok(Ok(len)) = wait!(quick_ping) {
           if len == MTU_IPV4 {
