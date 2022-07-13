@@ -215,8 +215,9 @@ impl MtuV4 {
           }
         }
 
+        let mut timeout = self.timeout;
         if retry == 0 {
-          if let Ok(Ok(len)) = wait!(self.timeout - quick_ping) {
+          if let Ok(Ok(len)) = wait!(timeout - quick_ping) {
             if len == MTU_IPV4 {
               return rt!(len);
             }
@@ -229,7 +230,7 @@ impl MtuV4 {
           }
         }
 
-        let mut step = 32;
+        let mut step = 64;
 
         loop {
           mtu -= step;
@@ -243,6 +244,27 @@ impl MtuV4 {
             if len >= mtu {
               min = len;
               break;
+            }
+          }
+        }
+
+        while step > 1 {
+          step /= 2;
+          mtu = min + step;
+          send!(mtu);
+
+          if let Ok(Ok(len)) = wait!(quick_ping) {
+            if len > min {
+              min = len;
+            }
+          }
+        }
+        while timeout > quick_ping {
+          send!(min + 1);
+          timeout -= quick_ping;
+          if let Ok(Ok(len)) = wait!(quick_ping) {
+            if len > min {
+              min = len;
             }
           }
         }
