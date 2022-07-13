@@ -241,6 +241,9 @@ impl MtuV4 {
           send!(mtu);
 
           if let Ok(Ok(len)) = wait!(quick_ping) {
+            if len == MTU_IPV4 {
+              return rt!(len);
+            }
             if len >= mtu {
               min = len;
               break;
@@ -254,6 +257,9 @@ impl MtuV4 {
           send!(mtu);
 
           if let Ok(Ok(len)) = wait!(quick_ping) {
+            if len == MTU_IPV4 {
+              return rt!(len);
+            }
             if len > min {
               min = len;
             }
@@ -264,6 +270,9 @@ impl MtuV4 {
           send!(min + 1);
           timeout -= quick_ping;
           if let Ok(Ok(len)) = wait!(quick_ping) {
+            if len == MTU_IPV4 {
+              return rt!(len);
+            }
             if len > min {
               timeout = self.timeout;
               min = len;
