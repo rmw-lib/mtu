@@ -16,8 +16,10 @@ err = { version = "0.0.5", package = "rmw_err" }
 winping = "0.10.1"
 
 [target.'cfg(not(target_os = "windows"))'.dependencies]
+dashmap = "5.3.4"
 pnet_packet = "0.31.0"
 socket2 = "0.4.4"
+parking_lot = "0.12.1"
 
 [dev-dependencies]
 anyhow = "1.0.58"

@@ -10,6 +10,8 @@ use async_std::{
   net::UdpSocket,
   task::{spawn, JoinHandle},
 };
+use dashmap::DashMap;
+use parking_lot::RwLock;
 use pnet_packet::{
   icmp::{self},
   Packet,
@@ -40,17 +42,19 @@ pub fn v6(buf: &[u8]) -> u16 {
 #[derive(Debug)]
 pub struct MtuV4 {
   udp: std::net::UdpSocket,
-  run: Option<JoinHandle<()>>,
-  mtu: BTreeMap<SocketAddrV4, (u16, u16)>,
+  recv: RwLock<Option<JoinHandle<()>>>,
+  mtu: DashMap<SocketAddrV4, (u16, u16)>,
 }
 
 impl MtuV4 {
-  pub fn run(&mut self) {
-    if self.run.is_some() {
-      return;
+  pub fn run(&self) {
+    {
+      if self.recv.read().is_some() {
+        return;
+      }
     }
     let udp: UdpSocket = err::ok!(self.udp.try_clone()).unwrap().into();
-    self.run = Some(spawn(async move {
+    *self.recv.write() = Some(spawn(async move {
       let mut buf = vec![0u8; crate::ETHERNET as usize];
       loop {
         if let Ok((recv, peer)) = udp.recv_from(&mut buf).await {
@@ -87,16 +91,14 @@ impl MtuV4 {
     .unwrap();
     err::log!(udp.bind(&addr.into()));
     let udp: std::net::UdpSocket = udp.into();
-    let mut me = Self {
+    Self {
       udp,
-      run: None,
+      recv: RwLock::new(None),
       mtu: BTreeMap::<SocketAddrV4, (u16, u16)>::new(),
-    };
-    me.run();
-    me
+    }
   }
 
-  pub async fn get(&mut self, addr: SocketAddrV4) -> u16 {
+  pub async fn get(&self, addr: SocketAddrV4) -> u16 {
     let len = 1472;
     let mut buf = unsafe { Box::<[u8]>::new_uninit_slice(8 + len).assume_init() };
 
