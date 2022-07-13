@@ -1,6 +1,5 @@
 use std::{
-  net::{IpAddr, Ipv4Addr, SocketAddr},
-  os::unix::prelude::{AsRawFd, FromRawFd},
+  net::{IpAddr, Ipv4Addr, SocketAddr, UdpSocket},
   sync::Arc,
   time::Duration,
 };
@@ -34,8 +33,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     ));
 
   // CREATE STD SOCKET FROM SOCKET2 SOCKET
-  let raw_ipv4_socket = socket2_ipv4_socket.as_raw_fd();
-  let std_ipv4_socket = unsafe { std::net::UdpSocket::from_raw_fd(raw_ipv4_socket) };
+  let std_ipv4_socket: UdpSocket = socket2_ipv4_socket.into();
   std_ipv4_socket.set_read_timeout(Some(Duration::from_millis(100)))?;
   let socket_arc = Arc::new(std_ipv4_socket);
   let dest = "223.5.5.5:0";
