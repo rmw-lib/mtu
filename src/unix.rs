@@ -135,7 +135,8 @@ impl MtuV4 {
         FindRecv::Recv(recv, find_s);
       }
     };
-    let len = 1472;
+    let len = MTU_IPV4 as usize;
+
     let mut buf = unsafe { Box::<[u8]>::new_uninit_slice(8 + len).assume_init() };
 
     let mut packet = icmp::echo_request::MutableEchoRequestPacket::new(&mut buf[..]).unwrap();
