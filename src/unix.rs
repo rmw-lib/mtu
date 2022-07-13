@@ -162,10 +162,12 @@ impl MtuV4 {
             err::log!(find_s.send($len).await);
 
             let mtu = self.mtu.load(Ordering::Relaxed);
-            if $len < mtu {
-              self.mtu.fetch_sub((mtu - $len) / 2, Ordering::Relaxed);
-            } else if mtu < $len {
-              self.mtu.fetch_add(($len - mtu) / 2, Ordering::Relaxed);
+            if mtu != $len {
+              if mtu > $len {
+                self.mtu.fetch_sub((mtu - $len) / 2, Ordering::Relaxed);
+              } else {
+                self.mtu.fetch_add(($len - mtu) / 2, Ordering::Relaxed);
+              }
             }
             $len
           }};
