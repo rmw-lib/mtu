@@ -6,6 +6,8 @@ pub const IPV6_HEADER_SIZE: u16 = 40;
 pub const UDP_HEADER_SIZE: u16 = 8;
 pub const MTU_IPV4: u16 = ETHERNET - IPV4_HEADER_SIZE - UDP_HEADER_SIZE;
 pub const MTU_IPV6: u16 = ETHERNET - IPV6_HEADER_SIZE - UDP_HEADER_SIZE;
+pub const MTU_MIN_IPV4: u16 = 576;
+pub const MTU_MIN_IPV6: u16 = 1280;
 
 #[cfg(not(target_os = "windows"))]
 mod unix;

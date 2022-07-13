@@ -64,6 +64,7 @@ impl MtuV4 {
     let ip = IpAddr::V4(Ipv4Addr::UNSPECIFIED);
     let addr = SocketAddr::new(ip, 0);
 
+    /*
     let port = {
       std::net::UdpSocket::bind(addr)
         .unwrap()
@@ -73,6 +74,7 @@ impl MtuV4 {
     };
 
     let addr = SocketAddr::new(ip, port);
+    */
 
     let udp = err::ok!(socket2::Socket::new(
       socket2::Domain::IPV4,
