@@ -66,7 +66,7 @@ impl MtuV4 {
     }));
   }
 
-  pub fn new() -> Self {
+  pub fn new(timeout: u64) -> Self {
     let ip = IpAddr::V4(Ipv4Addr::UNSPECIFIED);
     let addr = SocketAddr::new(ip, 0);
 
@@ -92,7 +92,7 @@ impl MtuV4 {
     let udp: std::net::UdpSocket = udp.into();
     Self {
       udp,
-      timeout: 6,
+      timeout,
       recv: RwLock::new(None),
       mtu: DashMap::<SocketAddrV4, (u16, u16)>::new(),
     }
@@ -124,12 +124,6 @@ impl MtuV4 {
 
     err::log!(timeout(dur, never).await);
     0
-  }
-}
-
-impl Default for MtuV4 {
-  fn default() -> Self {
-    Self::new()
   }
 }
 
