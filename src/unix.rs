@@ -13,6 +13,8 @@ use pnet_packet::{
   Packet,
 };
 
+const PAYLOAD: [u8; crate::MTU_IPV4 as usize] = [0; crate::MTU_IPV4 as usize];
+
 #[cfg(any(target_os = "macos", target_os = "ios"))]
 pub fn v4(buf: &[u8]) -> u16 {
   (buf.len() as u16) - crate::IPV4_HEADER_SIZE
@@ -76,16 +78,16 @@ impl MtuV4 {
   pub async fn get(&mut self, addr: SocketAddrV4) -> u16 {
     let len = 1472;
     let mut buf = unsafe { Box::<[u8]>::new_uninit_slice(8 + len).assume_init() };
-    let payload = unsafe { Box::<[u8]>::new_uninit_slice(len).assume_init() };
 
-    let len = buf.len();
     let mut packet = icmp::echo_request::MutableEchoRequestPacket::new(&mut buf[..]).unwrap();
     packet.set_icmp_type(icmp::IcmpTypes::EchoRequest);
 
     // Identifier为标识符，由主机设定，一般设置为进程号，回送响应消息与回送消息中identifier保持一致 && Sequence Number为序列号，由主机设定，一般设为由0递增的序列，回送响应消息与回送消息中Sequence Number保持一致
-    packet.set_identifier(2);
-    packet.set_sequence_number(len as u16 - 8);
-    packet.set_payload(&payload);
+
+    //packet.set_identifier(0);
+
+    packet.set_sequence_number(len as u16);
+    packet.set_payload(&PAYLOAD[..len]);
 
     let icmp_packet = icmp::IcmpPacket::new(packet.packet()).unwrap();
     let checksum = icmp::checksum(&icmp_packet);
@@ -94,7 +96,6 @@ impl MtuV4 {
     self.run();
     err::log!(self.udp.send_to(packet.packet(), addr));
 
-    let mut buf = [0; 1500];
     let never = pending::<()>();
     let dur = Duration::from_secs(5);
 
