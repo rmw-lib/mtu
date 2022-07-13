@@ -5,7 +5,7 @@ use mtu::MtuV4;
 async fn main() -> Result<()> {
   // SOURCE IP ADDRESS
   // let localhost = Ipv4Addr::LOCALHOST;
-  let dest = "223.5.5.5:0".parse()?;
+  let dest = "8.8.8.8:0".parse()?;
 
   let timeout = 6000;
   let mtu_v4 = MtuV4::new(timeout);
