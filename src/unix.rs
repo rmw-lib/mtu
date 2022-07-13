@@ -1,14 +1,13 @@
 use std::{
   collections::HashMap,
   net::{IpAddr, Ipv4Addr, SocketAddr, SocketAddrV4},
-  pin::Pin,
   sync::Arc,
   time::Duration,
 };
 
 use async_std::{
   channel::{bounded, Receiver, Sender},
-  future::{pending, timeout},
+  future::timeout,
   net::UdpSocket,
   task::{spawn, JoinHandle},
 };
@@ -73,21 +72,19 @@ impl MtuV4 {
     *recv = Some(spawn(async move {
       let mut buf = vec![0u8; crate::ETHERNET as usize];
       loop {
-        if let Ok((recv, addr)) = udp.recv_from(&mut buf).await {
+        if let Ok((recv, SocketAddr::V4(addr))) = udp.recv_from(&mut buf).await {
           //let sent = udp.send_to(&buf[..recv], &peer).await?;
-          if let SocketAddr::V4(addr) = addr {
-            let r = {
-              if let Some(addr_mtu) = mtu.read().get(&addr) {
-                let len = v4(&buf[..recv]);
-                Some((addr_mtu.send.clone(), len))
-              } else {
-                None
-              }
-            };
-            if let Some((send, len)) = r {
-              dbg!((addr, len));
-              err::log!(send.send(len).await);
+          let r = {
+            if let Some(addr_mtu) = mtu.read().get(&addr) {
+              let len = v4(&buf[..recv]);
+              Some((addr_mtu.send.clone(), len))
+            } else {
+              None
             }
+          };
+          if let Some((send, len)) = r {
+            dbg!((addr, len));
+            err::log!(send.send(len).await);
           }
         }
       }
