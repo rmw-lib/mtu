@@ -5,22 +5,8 @@ pub const UDP_HEADER_SIZE: u16 = 8;
 pub const UDP_IPV4: u16 = ETHERNET - IPV4_HEADER_SIZE - UDP_HEADER_SIZE;
 pub const UDP_IPV6: u16 = ETHERNET - IPV6_HEADER_SIZE - UDP_HEADER_SIZE;
 
-#[cfg(any(target_os = "macos", target_os = "ios"))]
-pub fn v4<'a>(buf: &'a [u8]) -> u16 {
-  (buf.len() as u16) - IPV4_HEADER_SIZE
-}
+#[cfg(not(target_os = "windows"))]
+mod unix;
 
-#[cfg(any(target_os = "macos", target_os = "ios"))]
-pub fn v6<'a>(buf: &'a [u8]) -> u16 {
-  (buf.len() as u16) - IPV6_HEADER_SIZE
-}
-
-#[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "ios")))]
-pub fn v4<'a>(buf: &'a [u8]) -> u16 {
-  buf.len() as u16
-}
-
-#[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "ios")))]
-pub fn v6<'a>(buf: &'a [u8]) -> u16 {
-  buf.len() as u16
-}
+#[cfg(not(target_os = "windows"))]
+pub use unix::{MtuV4, MtuV6};
