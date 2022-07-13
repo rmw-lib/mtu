@@ -1,7 +1,10 @@
 use std::{
   collections::HashMap,
   net::{IpAddr, Ipv4Addr, SocketAddr, SocketAddrV4},
-  sync::Arc,
+  sync::{
+    atomic::{AtomicU16, Ordering},
+    Arc,
+  },
   time::Duration,
 };
 
@@ -12,12 +15,9 @@ use async_std::{
   task::{spawn, JoinHandle},
 };
 use parking_lot::{Mutex, RwLock};
-use pnet_packet::{
-  icmp::{self},
-  Packet,
-};
+use pnet_packet::{icmp, Packet};
 
-use crate::UDP_HEADER_SIZE;
+use crate::{MTU_IPV4, MTU_MIN_IPV4, UDP_HEADER_SIZE};
 
 const RETRY: u16 = 6;
 const PAYLOAD: [u8; crate::MTU_IPV4 as usize] = [9; crate::MTU_IPV4 as usize];
@@ -58,7 +58,8 @@ pub struct MtuV4 {
   udp: std::net::UdpSocket,
   recv: Mutex<Option<JoinHandle<()>>>,
   timeout: u64,
-  mtu: Arc<RwLock<HashMap<SocketAddrV4, AddrMtu>>>,
+  mtu: AtomicU16,
+  channel: Arc<RwLock<HashMap<SocketAddrV4, AddrMtu>>>,
 }
 
 impl MtuV4 {
@@ -68,14 +69,14 @@ impl MtuV4 {
       return;
     }
     let udp: UdpSocket = err::ok!(self.udp.try_clone()).unwrap().into();
-    let mtu = self.mtu.clone();
+    let channel = self.channel.clone();
     *recv = Some(spawn(async move {
       let mut buf = vec![0u8; crate::ETHERNET as usize];
       loop {
         if let Ok((recv, SocketAddr::V4(addr))) = udp.recv_from(&mut buf).await {
           //let sent = udp.send_to(&buf[..recv], &peer).await?;
           let r = {
-            if let Some(addr_mtu) = mtu.read().get(&addr) {
+            if let Some(addr_mtu) = channel.read().get(&addr) {
               let len = v4(&buf[..recv]);
               Some((addr_mtu.send.clone(), len))
             } else {
@@ -125,20 +126,21 @@ impl MtuV4 {
     Self {
       udp,
       timeout,
+      mtu: AtomicU16::new(MTU_MIN_IPV4),
       recv: Mutex::new(None),
-      mtu: Arc::new(RwLock::new(HashMap::new())),
+      channel: Arc::new(RwLock::new(HashMap::new())),
     }
   }
 
   pub async fn get(&self, addr: SocketAddrV4) -> u16 {
     let send_recv = {
-      let mut mtu = self.mtu.write();
-      if let Some(mtu) = mtu.get(&addr) {
+      let mut channel = self.channel.write();
+      if let Some(mtu) = channel.get(&addr) {
         FindRecv::Find(mtu.find.clone())
       } else {
         let (find_s, find_r) = bounded(1);
         let (send, recv) = bounded(1);
-        mtu.insert(addr, AddrMtu { find: find_r, send });
+        channel.insert(addr, AddrMtu { find: find_r, send });
         FindRecv::Recv(recv, find_s)
       }
     };
@@ -150,8 +152,6 @@ impl MtuV4 {
 
         let udp = &self.udp;
 
-        use crate::{MTU_IPV4, MTU_MIN_IPV4};
-
         icmp_v4_send(udp, addr, MTU_IPV4);
 
         let mut retry = RETRY;
@@ -160,6 +160,13 @@ impl MtuV4 {
         macro_rules! rt {
           ($len:expr) => {{
             err::log!(find_s.send($len).await);
+
+            let mtu = self.mtu.load(Ordering::Relaxed);
+            if $len < mtu {
+              self.mtu.fetch_sub((mtu - $len) / 2, Ordering::Relaxed);
+            } else if mtu < $len {
+              self.mtu.fetch_add(($len - mtu) / 2, Ordering::Relaxed);
+            }
             $len
           }};
         }
