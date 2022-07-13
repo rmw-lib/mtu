@@ -13,7 +13,7 @@ use pnet_packet::{
   Packet,
 };
 
-const PAYLOAD: [u8; crate::MTU_IPV4 as usize] = [0; crate::MTU_IPV4 as usize];
+const PAYLOAD: [u8; crate::MTU_IPV4 as usize] = [9; crate::MTU_IPV4 as usize];
 
 #[cfg(any(target_os = "macos", target_os = "ios"))]
 pub fn v4(buf: &[u8]) -> u16 {
@@ -66,11 +66,11 @@ impl MtuV4 {
 
     /*
     let port = {
-      std::net::UdpSocket::bind(addr)
-        .unwrap()
-        .local_addr()
-        .unwrap()
-        .port()
+    std::net::UdpSocket::bind(addr)
+    .unwrap()
+    .local_addr()
+    .unwrap()
+    .port()
     };
 
     let addr = SocketAddr::new(ip, port);
