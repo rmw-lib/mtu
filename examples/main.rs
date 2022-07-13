@@ -42,8 +42,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
   let socket_clone = Arc::clone(&socket_arc);
   std::thread::spawn(move || {
-    let packet_slice = &mut [0; 56];
-    let mut buf = vec![0; 8 + 56]; // 8 bytes of header, then payload
+    let packet_slice = &mut [0; 57];
+    let mut buf = vec![0; 8 + 57]; // 8 bytes of header, then payload
     let mut packet = icmp::echo_request::MutableEchoRequestPacket::new(&mut buf[..]).unwrap();
     packet.set_icmp_type(icmp::IcmpTypes::EchoRequest);
     packet.set_identifier(1);
@@ -63,16 +63,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
   let mut buffer = [0; 1024 * 1024];
   for _ in 0..20 {
     if let Ok((bytes_read, from)) = socket_arc.recv_from(&mut buffer) {
-      println!(
-        "Received {} bytes from {:?} {:?}",
-        bytes_read,
-        from,
-        &buffer[..bytes_read]
-      );
+      println!("Received {} bytes from {:?}", bytes_read, from);
       let ipv4_packet = pnet_packet::ipv4::Ipv4Packet::new(&buffer[..bytes_read]).unwrap();
-      let _icmp_packet = pnet_packet::icmp::IcmpPacket::new(ipv4_packet.payload()).unwrap();
-      let _udp_packet = pnet_packet::udp::UdpPacket::new(&ipv4_packet.payload()).unwrap();
-      println!("Received {:?}", ipv4_packet);
+      let icmp_packet = pnet_packet::icmp::IcmpPacket::new(ipv4_packet.payload()).unwrap();
+      let udp_packet = pnet_packet::udp::UdpPacket::new(&ipv4_packet.payload()).unwrap();
+      println!("Received {:?}", icmp_packet);
     }
   }
   Ok(())
