@@ -153,7 +153,7 @@ impl MtuV4 {
 
         let udp = &self.udp;
 
-        use crate::MTU_IPV4;
+        use crate::{MTU_IPV4, MTU_MIN_IPV4};
 
         icmp_v4_send(udp, addr, MTU_IPV4);
 
@@ -172,12 +172,26 @@ impl MtuV4 {
           break;
         }
 
+        let mut min = 0;
         let mut retry = RETRY;
+        while retry > 0 {
+          retry -= 1;
+          icmp_v4_send(udp, addr, crate::MTU_MIN_IPV4);
+          let wait = Duration::from_secs(self.timeout);
+          if let Ok(Ok(len)) = timeout(wait, recv.recv()).await {
+            if len >= MTU_MIN_IPV4 {
+              min = len;
+              break;
+            }
+          }
+        }
 
-        let wait = Duration::from_secs(self.timeout);
+        if min == 0 {
+          err::log!(find_s.send(0).await);
+          return 0;
+        }
 
-        icmp_v4_send(udp, addr, crate::MTU_MIN_IPV4);
-
+        todo!();
         /*
            recv.recv()).await
 
