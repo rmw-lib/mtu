@@ -74,7 +74,9 @@ impl MtuV4 {
   }
 
   pub async fn get(&mut self, addr: SocketAddrV4) -> u16 {
-    let mut buf = [0; 8 + 1472]; // 8 bytes of header, then payload
+    let len = 1472;
+    let mut buf = unsafe { Box::<[u8]>::new_uninit_slice(8 + len).assume_init() };
+
     let len = buf.len();
     let mut packet = icmp::echo_request::MutableEchoRequestPacket::new(&mut buf[..]).unwrap();
     packet.set_icmp_type(icmp::IcmpTypes::EchoRequest);
