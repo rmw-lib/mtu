@@ -118,8 +118,7 @@ impl MtuV4 {
     let send_recv = {
       let mut mtu = self.mtu.write();
       if let Some(mtu) = mtu.get(&addr) {
-        FindRecv::Find(mtu.find.clone());
-      //        return err::ok!(mtu.find.recv().await).unwrap();
+        FindRecv::Find(mtu.find.clone())
       } else {
         let (find_s, find_r) = bounded(1);
         let (send, recv) = bounded(1);
@@ -132,34 +131,40 @@ impl MtuV4 {
             send,
           },
         );
-        FindRecv::Recv(recv, find_s);
+        FindRecv::Recv(recv, find_s)
       }
     };
-    let len = MTU_IPV4 as usize;
 
-    let mut buf = unsafe { Box::<[u8]>::new_uninit_slice(8 + len).assume_init() };
+    match send_recv {
+      FindRecv::Find(find) => err::ok!(find.recv().await).unwrap(),
+      FindRecv::Recv(recv, find_s) => {
+        let len = MTU_IPV4 as usize;
 
-    let mut packet = icmp::echo_request::MutableEchoRequestPacket::new(&mut buf[..]).unwrap();
-    packet.set_icmp_type(icmp::IcmpTypes::EchoRequest);
+        let mut buf = unsafe { Box::<[u8]>::new_uninit_slice(8 + len).assume_init() };
 
-    // Identifier为标识符，由主机设定，一般设置为进程号，回送响应消息与回送消息中identifier保持一致 && Sequence Number为序列号，由主机设定，一般设为由0递增的序列，回送响应消息与回送消息中Sequence Number保持一致
-    // linux 貌似 Identifier 设置无效，会设置成udp的端口
-    //packet.set_identifier();
+        let mut packet = icmp::echo_request::MutableEchoRequestPacket::new(&mut buf[..]).unwrap();
+        packet.set_icmp_type(icmp::IcmpTypes::EchoRequest);
 
-    packet.set_sequence_number(len as u16);
-    packet.set_payload(&PAYLOAD[..len]);
+        // Identifier为标识符，由主机设定，一般设置为进程号，回送响应消息与回送消息中identifier保持一致 && Sequence Number为序列号，由主机设定，一般设为由0递增的序列，回送响应消息与回送消息中Sequence Number保持一致
+        // linux 貌似 Identifier 设置无效，会设置成udp的端口
+        //packet.set_identifier();
 
-    let icmp_packet = icmp::IcmpPacket::new(packet.packet()).unwrap();
-    let checksum = icmp::checksum(&icmp_packet);
-    packet.set_checksum(checksum);
+        packet.set_sequence_number(len as u16);
+        packet.set_payload(&PAYLOAD[..len]);
 
-    self.run();
-    err::log!(self.udp.send_to(packet.packet(), addr));
+        let icmp_packet = icmp::IcmpPacket::new(packet.packet()).unwrap();
+        let checksum = icmp::checksum(&icmp_packet);
+        packet.set_checksum(checksum);
 
-    let never = pending::<()>();
-    let dur = Duration::from_secs(self.timeout);
-    err::log!(timeout(dur, never).await);
-    0
+        self.run();
+        err::log!(self.udp.send_to(packet.packet(), addr));
+
+        let never = pending::<()>();
+        let dur = Duration::from_secs(self.timeout);
+        err::log!(timeout(dur, never).await);
+        0
+      }
+    }
   }
 }
 
