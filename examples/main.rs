@@ -40,8 +40,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
   let socket_clone = Arc::clone(&socket_arc);
   std::thread::spawn(move || {
-    let packet_slice = &mut [0; 142];
-    let mut buf = vec![0; 8 + 142]; // 8 bytes of header, then payload
+    let packet_slice = &mut [0; 1472];
+    let mut buf = vec![0; 8 + 1472]; // 8 bytes of header, then payload
     let len = buf.len();
     let mut packet = icmp::echo_request::MutableEchoRequestPacket::new(&mut buf[..]).unwrap();
     packet.set_icmp_type(icmp::IcmpTypes::EchoRequest);
