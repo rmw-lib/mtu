@@ -7,7 +7,7 @@ async fn main() -> Result<()> {
   // let localhost = Ipv4Addr::LOCALHOST;
   let dest = "223.5.5.5:0".parse()?;
 
-  let timeout = 6;
+  let timeout = 6000;
   let mtu_v4 = MtuV4::new(timeout);
 
   dbg!(mtu_v4.get(dest).await);

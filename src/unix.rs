@@ -184,11 +184,13 @@ impl MtuV4 {
         // 确定主机是否活着
 
         let mut retry = RETRY;
+        let quick_ping = 100.min(self.timeout);
+
         while retry != 0 {
           retry -= 1;
           icmp_v4_send(udp, addr, min);
           //let wait = Duration::from_secs(self.timeout);
-          let wait = Duration::from_millis(20);
+          let wait = Duration::from_millis(quick_ping);
           if let Ok(Ok(len)) = timeout(wait, recv.recv()).await {
             if len >= min {
               min = len;
@@ -199,7 +201,7 @@ impl MtuV4 {
         }
 
         if retry == 0 {
-          let wait = Duration::from_secs(self.timeout);
+          let wait = Duration::from_millis(self.timeout - quick_ping);
           if let Ok(Ok(len)) = timeout(wait, recv.recv()).await {
             if len >= min {
               min = len;
