@@ -232,26 +232,17 @@ impl MtuV4 {
         let mut step = 32;
 
         loop {
-          if step <= 1 {
+          mtu -= step;
+          if mtu < min {
             break;
-          }
-          {
-            let t = mtu - step;
-            if t < min {
-              step /= 2;
-              continue;
-            }
-            mtu = t;
           }
 
           send!(mtu);
 
           if let Ok(Ok(len)) = wait!(quick_ping) {
-            if len > min {
+            if len >= mtu {
               min = len;
-              if mtu < min {
-                mtu = min + step;
-              }
+              break;
             }
           }
         }
