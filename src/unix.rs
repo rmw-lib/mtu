@@ -2,6 +2,7 @@ use std::{
   collections::HashMap,
   net::{IpAddr, Ipv4Addr, SocketAddr, SocketAddrV4},
   pin::Pin,
+  sync::Arc,
   time::Duration,
 };
 
@@ -44,15 +45,13 @@ pub fn v6(buf: &[u8]) -> u16 {
 
 #[derive(Debug)]
 pub struct AddrMtu {
-  min: u16,
-  max: u16,
-  send: Sender<(u16, u16)>,
+  send: Sender<u16>,
   find: Receiver<u16>,
 }
 
 enum FindRecv {
   Find(Receiver<u16>),
-  Recv(Receiver<(u16, u16)>, Sender<u16>),
+  Recv(Receiver<u16>, Sender<u16>),
 }
 
 #[derive(Debug)]
@@ -60,7 +59,7 @@ pub struct MtuV4 {
   udp: std::net::UdpSocket,
   recv: Mutex<Option<JoinHandle<()>>>,
   timeout: u64,
-  mtu: RwLock<HashMap<SocketAddrV4, AddrMtu>>,
+  mtu: Arc<RwLock<HashMap<SocketAddrV4, AddrMtu>>>,
 }
 
 impl MtuV4 {
@@ -70,17 +69,30 @@ impl MtuV4 {
       return;
     }
     let udp: UdpSocket = err::ok!(self.udp.try_clone()).unwrap().into();
+    let mtu = self.mtu.clone();
     *recv = Some(spawn(async move {
       let mut buf = vec![0u8; crate::ETHERNET as usize];
       loop {
-        if let Ok((recv, peer)) = udp.recv_from(&mut buf).await {
-          dbg!(111);
+        if let Ok((recv, addr)) = udp.recv_from(&mut buf).await {
           //let sent = udp.send_to(&buf[..recv], &peer).await?;
-          println!("{} -> {}", peer, v4(&buf[..recv]));
+          if let SocketAddr::V4(addr) = addr {
+            if let Some(addr_mtu) = mtu.read().get(&addr) {
+              let len = v4(&buf[..recv]);
+              addr_mtu.send.send(len).await;
+              println!("{} -> {}", addr, len);
+            }
+          }
         }
         dbg!("end");
       }
     }));
+  }
+
+  pub async fn stop(&self) {
+    let mut recv = self.recv.lock();
+    if let Some(task) = recv.take() {
+      task.cancel().await;
+    }
   }
 
   pub fn new(timeout: u64) -> Self {
@@ -111,7 +123,7 @@ impl MtuV4 {
       udp,
       timeout,
       recv: Mutex::new(None),
-      mtu: RwLock::new(HashMap::new()),
+      mtu: Arc::new(RwLock::new(HashMap::new())),
     }
   }
 
@@ -123,15 +135,7 @@ impl MtuV4 {
       } else {
         let (find_s, find_r) = bounded(1);
         let (send, recv) = bounded(1);
-        mtu.insert(
-          addr,
-          AddrMtu {
-            max: crate::MTU_IPV4,
-            min: crate::MTU_MIN_IPV4,
-            find: find_r,
-            send,
-          },
-        );
+        mtu.insert(addr, AddrMtu { find: find_r, send });
         FindRecv::Recv(recv, find_s)
       }
     };
@@ -140,31 +144,20 @@ impl MtuV4 {
       FindRecv::Find(find) => err::ok!(find.recv().await).unwrap(),
       FindRecv::Recv(recv, find_s) => {
         let mut retry = RETRY;
-        let len = MTU_IPV4 as usize;
 
-        let mut buf = unsafe { Box::<[u8]>::new_uninit_slice(8 + len).assume_init() };
-
-        let mut packet = icmp::echo_request::MutableEchoRequestPacket::new(&mut buf[..]).unwrap();
-        packet.set_icmp_type(icmp::IcmpTypes::EchoRequest);
-
-        // Identifier为标识符，由主机设定，一般设置为进程号，回送响应消息与回送消息中identifier保持一致 && Sequence Number为序列号，由主机设定，一般设为由0递增的序列，回送响应消息与回送消息中Sequence Number保持一致
-        // linux 貌似 Identifier 设置无效，会设置成udp的端口
-        //packet.set_identifier();
-
-        packet.set_sequence_number(len as u16);
-        packet.set_payload(&PAYLOAD[..len]);
-
-        let icmp_packet = icmp::IcmpPacket::new(packet.packet()).unwrap();
-        let checksum = icmp::checksum(&icmp_packet);
-        packet.set_checksum(checksum);
+        let wait = Duration::from_secs(self.timeout);
 
         self.run();
 
-        let wait = Duration::from_secs(self.timeout);
+        let udp = &self.udp;
+
+        icmp_v4_send(udp, addr, crate::MTU_MIN_IPV4);
+        icmp_v4_send(udp, addr, MTU_IPV4);
+
         while retry > 0 {
-          err::log!(self.udp.send_to(packet.packet(), addr));
+          // err::log!(self.udp.send_to(packet.packet(), addr));
           if let Ok(r) = timeout(wait, recv.recv()).await {
-            if let Ok((min, max)) = r {
+            if let Ok(len) = r {
               retry = RETRY;
             }
           }
@@ -174,6 +167,25 @@ impl MtuV4 {
       }
     }
   }
+}
+
+pub fn icmp_v4_send<'p>(udp: &std::net::UdpSocket, addr: SocketAddrV4, len: u16) {
+  let len = len as usize;
+  let mut buf = unsafe { Box::<[u8]>::new_uninit_slice(8 + len).assume_init() };
+  let mut packet = icmp::echo_request::MutableEchoRequestPacket::new(&mut buf[..]).unwrap();
+  packet.set_icmp_type(icmp::IcmpTypes::EchoRequest);
+
+  // Identifier为标识符，由主机设定，一般设置为进程号，回送响应消息与回送消息中identifier保持一致 && Sequence Number为序列号，由主机设定，一般设为由0递增的序列，回送响应消息与回送消息中Sequence Number保持一致
+  // linux 貌似 Identifier 设置无效，会设置成udp的端口
+  //packet.set_identifier();
+
+  packet.set_sequence_number(len as u16);
+  packet.set_payload(&PAYLOAD[..len]);
+
+  let icmp_packet = icmp::IcmpPacket::new(packet.packet()).unwrap();
+  let checksum = icmp::checksum(&icmp_packet);
+  packet.set_checksum(checksum);
+  err::log!(udp.send_to(packet.packet(), addr));
 }
 
 pub struct MtuV6 {}
