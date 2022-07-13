@@ -4,6 +4,8 @@ find mtu for windows / mac / linux , not require root permissions .
 
 the return mtu value not include ip header , for example if ipv4 mtu is 1500 , return mtu value is 1480
 
+Return 0 means mtu cannot get via icmp.
+
 base on `async_std` / `winping` .
 
 ---
@@ -11,6 +13,8 @@ base on `async_std` / `winping` .
 查找 windows / mac / linux 的 mtu ，不需要管理员权限。
 
 返回的 mtu 值不含 ip header 的长度，比如说 ipv4 的 mtu 1500 时，返回值是 1480。
+
+返回 0 表示无法通过 icmp 获取 mtu。
 
 ---
 

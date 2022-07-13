@@ -19,6 +19,7 @@ use pnet_packet::{
 
 use crate::MTU_IPV4;
 
+const RETRY: u16 = 6;
 const PAYLOAD: [u8; crate::MTU_IPV4 as usize] = [9; crate::MTU_IPV4 as usize];
 
 #[cfg(any(target_os = "macos", target_os = "ios"))]
@@ -43,15 +44,15 @@ pub fn v6(buf: &[u8]) -> u16 {
 
 #[derive(Debug)]
 pub struct AddrMtu {
-  max: u16,
   min: u16,
-  send: Sender<()>,
+  max: u16,
+  send: Sender<(u16, u16)>,
   find: Receiver<u16>,
 }
 
 enum FindRecv {
   Find(Receiver<u16>),
-  Recv(Receiver<()>, Sender<u16>),
+  Recv(Receiver<(u16, u16)>, Sender<u16>),
 }
 
 #[derive(Debug)]
@@ -138,6 +139,7 @@ impl MtuV4 {
     match send_recv {
       FindRecv::Find(find) => err::ok!(find.recv().await).unwrap(),
       FindRecv::Recv(recv, find_s) => {
+        let mut retry = RETRY;
         let len = MTU_IPV4 as usize;
 
         let mut buf = unsafe { Box::<[u8]>::new_uninit_slice(8 + len).assume_init() };
@@ -157,11 +159,17 @@ impl MtuV4 {
         packet.set_checksum(checksum);
 
         self.run();
-        err::log!(self.udp.send_to(packet.packet(), addr));
 
-        let never = pending::<()>();
-        let dur = Duration::from_secs(self.timeout);
-        err::log!(timeout(dur, never).await);
+        let wait = Duration::from_secs(self.timeout);
+        while retry > 0 {
+          err::log!(self.udp.send_to(packet.packet(), addr));
+          if let Ok(r) = timeout(wait, recv.recv()).await {
+            if let Ok((min, max)) = r {
+              retry = RETRY;
+            }
+          }
+          retry -= 1;
+        }
         0
       }
     }
