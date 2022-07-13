@@ -40,8 +40,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
   let socket_clone = Arc::clone(&socket_arc);
   std::thread::spawn(move || {
-    let packet_slice = &mut [0; 57];
-    let mut buf = vec![0; 8 + 57]; // 8 bytes of header, then payload
+    let packet_slice = &mut [0; 1472];
+    let mut buf = vec![0; 8 + 1472]; // 8 bytes of header, then payload
     let len = buf.len();
     let mut packet = icmp::echo_request::MutableEchoRequestPacket::new(&mut buf[..]).unwrap();
     packet.set_icmp_type(icmp::IcmpTypes::EchoRequest);
@@ -61,7 +61,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
   });
 
-  let mut buffer = [0; 1024 * 1024];
+  let mut buffer = [0; 1500];
   for _ in 0..20 {
     if let Ok((bytes_read, from)) = socket_arc.recv_from(&mut buffer) {
       println!("Received {} bytes from {:?}", bytes_read, from);
