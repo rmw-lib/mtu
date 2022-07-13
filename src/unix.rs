@@ -158,13 +158,22 @@ impl MtuV4 {
         icmp_v4_send(udp, addr, MTU_IPV4);
 
         let mut retry = RETRY;
+        let mut min = MTU_MIN_IPV4;
+
+        macro_rules! rt {
+          ($len:expr) => {{
+            err::log!(find_s.send($len).await);
+            $len
+          }};
+        }
 
         while retry > 0 {
           let wait = Duration::from_millis(300);
           if let Ok(Ok(len)) = timeout(wait, recv.recv()).await {
             if len == MTU_IPV4 {
-              err::log!(find_s.send(len).await);
-              return len;
+              return rt!(len);
+            } else if len > min {
+              min = len;
             }
             retry -= 1;
             continue;
@@ -172,26 +181,25 @@ impl MtuV4 {
           break;
         }
 
-        let mut min = 0;
         let mut retry = RETRY;
-        while retry > 0 {
+        while retry != 0 {
           retry -= 1;
-          icmp_v4_send(udp, addr, crate::MTU_MIN_IPV4);
+          icmp_v4_send(udp, addr, min);
           let wait = Duration::from_secs(self.timeout);
           if let Ok(Ok(len)) = timeout(wait, recv.recv()).await {
-            if len >= MTU_MIN_IPV4 {
+            if len >= min {
               min = len;
+              retry = RETRY;
               break;
             }
           }
         }
 
-        if min == 0 {
-          err::log!(find_s.send(0).await);
-          return 0;
+        if retry == 0 {
+          return rt!(0);
         }
 
-        todo!();
+        //todo!();
         /*
            recv.recv()).await
 
