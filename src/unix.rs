@@ -19,7 +19,7 @@ use pnet_packet::{icmp, Packet};
 
 use crate::{MTU_IPV4, MTU_MIN_IPV4, UDP_HEADER_SIZE};
 
-const RETRY: u16 = 6;
+const RETRY: u16 = 4;
 const PAYLOAD: [u8; crate::MTU_IPV4 as usize] = [9; crate::MTU_IPV4 as usize];
 
 #[cfg(any(target_os = "macos", target_os = "ios"))]
@@ -223,6 +223,7 @@ impl MtuV4 {
             }
             if len >= min {
               min = len;
+              retry = RETRY - 1;
             }
           } else {
             return rt!(0);
@@ -265,7 +266,7 @@ impl MtuV4 {
           }
         }
 
-        while timeout >= quick_ping {
+        while timeout >= quick_ping && retry != 0 {
           send!(min + 1);
           let t = (min + MTU_IPV4) / 2;
           if t > min {
@@ -273,12 +274,16 @@ impl MtuV4 {
           }
           timeout -= quick_ping;
           if let Ok(Ok(len)) = wait!(quick_ping) {
+            dbg!((min, len, retry));
             if len == MTU_IPV4 {
               return rt!(len);
             }
             if len > min {
+              retry = RETRY;
               timeout = self.timeout;
               min = len;
+            } else {
+              retry -= 1;
             }
           }
         }
