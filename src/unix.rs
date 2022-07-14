@@ -267,6 +267,10 @@ impl MtuV4 {
 
         while timeout >= quick_ping {
           send!(min + 1);
+          let t = (min + MTU_IPV4) / 2;
+          if t > min {
+            send!(t);
+          }
           timeout -= quick_ping;
           if let Ok(Ok(len)) = wait!(quick_ping) {
             if len == MTU_IPV4 {
