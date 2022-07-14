@@ -223,7 +223,7 @@ impl MtuV4 {
             }
             if len >= min {
               min = len;
-              retry = RETRY - 1;
+              retry = RETRY;
             }
           } else {
             return rt!(0);
@@ -274,7 +274,6 @@ impl MtuV4 {
           }
           timeout -= quick_ping;
           if let Ok(Ok(len)) = wait!(quick_ping) {
-            dbg!((min, len, retry));
             if len == MTU_IPV4 {
               return rt!(len);
             }
@@ -282,10 +281,10 @@ impl MtuV4 {
               retry = RETRY;
               timeout = self.timeout;
               min = len;
-            } else {
-              retry -= 1;
+              continue;
             }
           }
+          retry -= 1;
         }
 
         min
